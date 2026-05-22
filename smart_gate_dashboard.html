@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Gate Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; }
+  .gate-arm { width: 4px; height: 60px; background: #475569; border-radius: 2px; transform-origin: bottom center; transition: transform 0.6s ease; position: absolute; left: 50%; transform: translateX(-50%) rotate(0deg); bottom: 0; }
+  .gate-arm.open { transform: translateX(-50%) rotate(-90deg); }
+  .dist-bar { height: 100%; border-radius: 999px; transition: width 0.4s, background 0.4s; }
+  .log-box { max-height: 130px; overflow-y: auto; }
+  .feed-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: background 0.4s; }
+</style>
+</head>
+<body class="min-h-screen p-6">
+
+  <div class="max-w-4xl mx-auto">
+
+    <!-- Header -->
+    <div class="bg-white rounded-xl border border-slate-200 px-6 py-4 flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 text-xl">🚧</div>
+        <div>
+          <div class="font-medium text-slate-800">Smart Gate Dashboard</div>
+          <div class="text-xs text-slate-400">Site Management System</div>
+        </div>
+      </div>
+      <span id="sys-badge" class="text-xs font-medium px-3 py-1 rounded-full bg-green-50 text-green-700">● System Online</span>
+    </div>
+
+    <!-- Metric cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs text-slate-400 mb-1">Gate status</div>
+        <div class="text-xl font-medium text-slate-800" id="gate-status-val">Closed</div>
+        <div class="text-xs text-slate-400 mt-1" id="gate-status-sub">Secure</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs text-slate-400 mb-1">Sensor distance</div>
+        <div class="text-xl font-medium text-slate-800" id="dist-metric">400 cm</div>
+        <div class="text-xs text-slate-400 mt-1">HC-SR04</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs text-slate-400 mb-1">Vehicles today</div>
+        <div class="text-xl font-medium text-slate-800" id="vehicle-count">0</div>
+        <div class="text-xs text-slate-400 mt-1">Detections</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs text-slate-400 mb-1">LED indicator</div>
+        <div class="text-xl font-medium text-slate-800" id="led-val">Off</div>
+        <div class="text-xs text-slate-400 mt-1">Pin D13</div>
+      </div>
+    </div>
+
+    <!-- Panels -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+
+      <!-- Live Feed -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-4">Live feed</div>
+        <div id="feed-box" class="flex items-center gap-3 p-3 rounded-lg border border-slate-100 mb-4">
+          <div class="feed-dot" id="feed-dot" style="background:#94a3b8"></div>
+          <span class="text-sm font-medium text-slate-700" id="feed-text">Gate Closed</span>
+          <span class="text-xs text-slate-400 ml-auto" id="feed-time">--:--</span>
+        </div>
+        <div class="flex flex-col items-center gap-3 py-2">
+          <div style="position:relative; width:120px; height:80px;">
+            <div class="gate-arm" id="gate-arm"></div>
+          </div>
+          <div style="width:120px; height:12px; background:#f1f5f9; border-radius:2px;"></div>
+          <div class="text-xs text-slate-400" id="gate-label-txt">Gate closed — path clear</div>
+        </div>
+      </div>
+
+      <!-- Sensor + Log -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Sensor readings</div>
+        <div class="mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs text-slate-400 w-20">Distance</span>
+            <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div class="dist-bar" id="dist-bar" style="width:100%;background:#22c55e"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-700 w-12 text-right" id="dist-bar-val">400 cm</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400 w-20">Threshold</span>
+            <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div style="width:12.5%; height:100%; background:#cbd5e1; border-radius:999px;"></div>
+            </div>
+            <span class="text-xs font-medium text-slate-700 w-12 text-right">50 cm</span>
+          </div>
+        </div>
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Event log</div>
+        <div class="log-box" id="log"></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Simulate sensor trigger</div>
+      <div class="flex items-center gap-4 flex-wrap">
+        <div class="flex items-center gap-3 flex-1">
+          <label class="text-sm text-slate-500 whitespace-nowrap">Distance (cm)</label>
+          <input type="range" min="0" max="400" value="400" step="1" id="dist-slider" class="flex-1" oninput="updateDist(this.value)">
+          <span class="text-sm font-medium text-slate-700 min-w-[56px]" id="slider-val">400 cm</span>
+        </div>
+        <button onclick="triggerVehicle()" class="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition">Trigger vehicle</button>
+        <button onclick="resetGate()" class="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition">Reset gate</button>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+let gateOpen = false, vehicleCount = 0, closeTimer = null, ledBlink = null;
+
+function getTime() {
+  return new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+function addLog(msg) {
+  const log = document.getElementById('log');
+  const item = document.createElement('div');
+  item.style.cssText = 'font-size:12px;color:#64748b;padding:4px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;';
+  item.innerHTML = '<span style="color:#94a3b8;flex-shrink:0">' + getTime() + '</span><span>' + msg + '</span>';
+  log.prepend(item);
+}
+
+function setFeed(text, dotColor) {
+  document.getElementById('feed-text').textContent = text;
+  document.getElementById('feed-dot').style.background = dotColor;
+  document.getElementById('feed-time').textContent = getTime();
+}
+
+function openGate() {
+  if (gateOpen) return;
+  gateOpen = true;
+  vehicleCount++;
+  document.getElementById('vehicle-count').textContent = vehicleCount;
+  document.getElementById('gate-arm').classList.add('open');
+  document.getElementById('gate-status-val').textContent = 'Open';
+  document.getElementById('gate-status-sub').textContent = 'Vehicle passing';
+  document.getElementById('gate-label-txt').textContent = 'Gate open — vehicle detected';
+  setFeed('Gate Opening...', '#f59e0b');
+  document.getElementById('led-val').textContent = 'Blinking';
+  addLog('Vehicle detected — gate opened');
+
+  let on = true;
+  ledBlink = setInterval(() => {
+    document.getElementById('led-val').textContent = on ? 'Blinking ●' : 'Blinking';
+    on = !on;
+  }, 300);
+
+  closeTimer = setTimeout(() => {
+    const dist = parseInt(document.getElementById('dist-slider').value);
+    if (dist > 50) { closeGate(); }
+    else { setFeed('Path blocked — gate held open', '#ef4444'); addLog('Path blocked — gate held open'); }
+  }, 5000);
+}
+
+function closeGate() {
+  gateOpen = false;
+  clearInterval(ledBlink); clearTimeout(closeTimer);
+  document.getElementById('gate-arm').classList.remove('open');
+  document.getElementById('gate-status-val').textContent = 'Closed';
+  document.getElementById('gate-status-sub').textContent = 'Secure';
+  document.getElementById('gate-label-txt').textContent = 'Gate closed — path clear';
+  document.getElementById('led-val').textContent = 'Off';
+  setFeed('Gate Closed', '#22c55e');
+  addLog('Gate closed — path clear');
+}
+
+function resetGate() {
+  clearInterval(ledBlink); clearTimeout(closeTimer);
+  gateOpen = false;
+  document.getElementById('gate-arm').classList.remove('open');
+  document.getElementById('gate-status-val').textContent = 'Closed';
+  document.getElementById('gate-status-sub').textContent = 'Secure';
+  document.getElementById('gate-label-txt').textContent = 'Gate closed — path clear';
+  document.getElementById('led-val').textContent = 'Off';
+  setFeed('Gate Closed', '#22c55e');
+  addLog('System reset');
+}
+
+function updateDist(val) {
+  val = parseInt(val);
+  document.getElementById('slider-val').textContent = val + ' cm';
+  document.getElementById('dist-metric').textContent = val + ' cm';
+  document.getElementById('dist-bar-val').textContent = val + ' cm';
+  const pct = Math.round((val / 400) * 100);
+  const bar = document.getElementById('dist-bar');
+  bar.style.width = pct + '%';
+  bar.style.background = val < 50 ? '#ef4444' : val < 150 ? '#f59e0b' : '#22c55e';
+  if (val < 50 && !gateOpen) openGate();
+}
+
+function triggerVehicle() {
+  document.getElementById('dist-slider').value = 20;
+  updateDist(20);
+}
+
+addLog('System started — monitoring active');
+setFeed('Gate Closed', '#22c55e');
+</script>
+</body>
+</html>
